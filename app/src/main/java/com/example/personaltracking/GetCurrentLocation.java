@@ -2,6 +2,9 @@ package com.example.personaltracking;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
@@ -9,25 +12,33 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationManager;
+import android.os.Build;
 import android.os.IBinder;
 import android.provider.Settings;
 import android.util.Log;
 
 import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
+import androidx.core.content.ContextCompat;
+
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
+import com.google.android.gms.location.LocationServices;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class GetCurrentLocation extends Service {
-    
-    private static final int REQUEST_LOCATION = 1;
-    LocationManager locationManager;
+
+    private static final int REQUEST_CODE_LOCATION_PERMISSION = 1;
+
     ScheduledExecutorService executorService;
     SharedPreferences sharedPreferences;
 
-    double newlat, newlong;
-    double oldlat, oldlong;
+    double newlatitude, newlongitude;
 
     public GetCurrentLocation() {
     }
@@ -47,74 +58,72 @@ public class GetCurrentLocation extends Service {
 
     public void showLocation(){
 
+        NotificationCompat.Builder builder = new
+                NotificationCompat.Builder(getApplicationContext(), "Notification");
+
+        Intent newIntent = new Intent(this, MainActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivities(this,1, new Intent[]{newIntent}, PendingIntent.FLAG_UPDATE_CURRENT);
+
+        builder.setContentTitle("Notification");
+        builder.setContentText("Tracking Started");
+        builder.setOngoing(true);
+        builder.setSmallIcon(R.drawable.message);
+        builder.setContentIntent(pendingIntent);
+        builder.setPriority(NotificationCompat.PRIORITY_DEFAULT);
+
+        NotificationManagerCompat managerCompat = NotificationManagerCompat.from(getApplicationContext());
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O){
+
+            String channelid = "Channel ID";
+            NotificationChannel channel = new NotificationChannel(
+                    channelid,"Notification Channel", NotificationManager.IMPORTANCE_HIGH);
+            managerCompat.createNotificationChannel(channel);
+            builder.setChannelId(channelid);
+        }
+        managerCompat.notify(1,builder.build());
+
+
         executorService = Executors.newScheduledThreadPool(1);
         executorService.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
 
-
-                //location work
-                locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-                if(!locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)){
-                    startActivity(new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS));
+                if(ContextCompat.checkSelfPermission(getApplicationContext(),
+                        Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED){
+                    ActivityCompat.requestPermissions((Activity) getApplicationContext(), new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, REQUEST_CODE_LOCATION_PERMISSION);
                 }else{
-                    if(ActivityCompat.checkSelfPermission(
-                            getApplicationContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-                            ActivityCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED){
-                        ActivityCompat.requestPermissions((Activity) getApplicationContext(), new String[]{Manifest.permission.ACCESS_FINE_LOCATION},REQUEST_LOCATION);
+                    LocationRequest locationRequest = new LocationRequest();
+                    locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 
-                    }else{
-                        Location location = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-                        if (location != null){
-                            newlat = location.getLatitude();
-                            newlong = location.getLongitude();
+                    LocationServices.getFusedLocationProviderClient(getApplicationContext())
+                            .requestLocationUpdates(locationRequest, new LocationCallback(){
+                                @Override
+                                public void onLocationResult(LocationResult locationResult) {
+                                    super.onLocationResult(locationResult);
+                                    LocationServices.getFusedLocationProviderClient(getApplicationContext()).removeLocationUpdates(this);
+                                    if (locationResult != null && locationResult.getLocations().size() > 0){
+                                        int latestlocation = locationResult.getLocations().size() - 1;
+                                        newlatitude = locationResult.getLocations().get(latestlocation).getLatitude();
+                                        newlongitude = locationResult.getLocations().get(latestlocation).getLongitude();
 
-                            double result = distance(oldlat, newlat, oldlong, newlong);
+                                        SharedPreferences.Editor editor = sharedPreferences.edit();
+                                        editor.putString("Latitude", String.valueOf(newlatitude));
+                                        editor.putString("Longitude", String.valueOf(newlongitude));
+                                        editor.commit();
 
-                            SharedPreferences.Editor editor = sharedPreferences.edit();
-                            editor.putString("TotalKM", String.valueOf(result));
-                            editor.commit();
-
-                            Log.e("Latitude : ", "showLatitude:" + String.valueOf(newlat));
-                            Log.e("Longitude: ", "showLongitude:" + String.valueOf(newlong));
-                            oldlat = newlat;
-                            oldlong = newlong;
-                        }
-                    }
+                                    }
+                                }
+                            }, getMainLooper());
                 }
-
             }
         }, 3, 3, TimeUnit.SECONDS);
 
-
-
     }
 
-
-    //distance calculating farmula
-    private double distance(double oldlat, double newlat, double oldlong, double newlong) {
-
-        oldlat = Math.toRadians(oldlat);
-        newlat = Math.toRadians(newlat);
-        oldlong = Math.toRadians(oldlong);
-        newlong = Math.toRadians(newlong);
-
-        // Haversine formula
-        double dlon = newlong - oldlong;
-        double dlat = newlat - oldlat;
-        double a = Math.pow(Math.sin(dlat / 2), 2)
-                + Math.cos(oldlat) * Math.cos(newlat)
-                * Math.pow(Math.sin(dlon / 2),2);
-
-        double c = 2 * Math.asin(Math.sqrt(a));
-
-        // Radius of earth in kilometers. Use 3956
-        // for miles
-        double r = 6371;
-
-        // calculate the result
-        return(c * r);
-
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        executorService.shutdown();
+        Log.e("Ending: ", "Service Destoried");
     }
-
 }
