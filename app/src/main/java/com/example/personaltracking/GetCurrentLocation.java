@@ -38,7 +38,7 @@ public class GetCurrentLocation extends Service {
     ScheduledExecutorService executorService;
     SharedPreferences sharedPreferences;
 
-    double newlatitude, newlongitude;
+    double newlatitude, newlongitude, oldlatitude, oldlongitude;
 
     public GetCurrentLocation() {
     }
@@ -106,7 +106,15 @@ public class GetCurrentLocation extends Service {
                                         newlatitude = locationResult.getLocations().get(latestlocation).getLatitude();
                                         newlongitude = locationResult.getLocations().get(latestlocation).getLongitude();
 
+                                        if ((oldlatitude == 0.0 && oldlongitude == 0.0) || (oldlatitude == newlatitude || oldlongitude == newlongitude)){
+                                            oldlatitude = newlatitude;
+                                            oldlongitude = newlongitude;
+                                        }
+
+                                        double distanceinmile = distance(oldlatitude,oldlongitude,newlatitude,newlongitude);
+
                                         SharedPreferences.Editor editor = sharedPreferences.edit();
+                                        editor.putString("Mile", String.valueOf(distanceinmile));
                                         editor.putString("Latitude", String.valueOf(newlatitude));
                                         editor.putString("Longitude", String.valueOf(newlongitude));
                                         editor.commit();
@@ -119,6 +127,27 @@ public class GetCurrentLocation extends Service {
         }, 3, 3, TimeUnit.SECONDS);
 
     }
+
+    //Getting distance in miles
+    private static double distance(double lat1, double lon1, double lat2, double lon2) {
+        if (lat1 == lat2 && lon1 == lon2) {
+            return 0.0;
+        }else{
+            Location loc1 = new Location("");
+
+            loc1.setLatitude(lat1);
+            loc1.setLongitude(lon1);
+
+            Location loc2 = new Location("");
+            loc2.setLatitude(lat2);
+            loc2.setLongitude(lon2);
+
+            float distanceInMeters = loc1.distanceTo(loc2);
+            // Meters to miles
+            return distanceInMeters / 1609;
+        }
+    }
+
 
     @Override
     public void onDestroy() {

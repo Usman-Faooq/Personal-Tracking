@@ -53,7 +53,8 @@ public class MainActivity extends AppCompatActivity {
                 .getSharedPreferences("MyLocation", Context.MODE_PRIVATE);
         String latitude = sharedPreferences.getString("Latitude", "");
         String longitude = sharedPreferences.getString("Longitude", "");
-        distanceview.setText("Latitude: " + latitude + "\nLangitude: " + longitude);
+        String mile = sharedPreferences.getString("Mile", "");
+        distanceview.setText("Miles: " + mile );
 
         switchbtn.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
@@ -82,7 +83,6 @@ public class MainActivity extends AppCompatActivity {
 
             }
         });
-
     }
 
 }
