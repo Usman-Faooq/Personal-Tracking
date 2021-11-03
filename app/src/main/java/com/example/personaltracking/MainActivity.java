@@ -6,14 +6,17 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import android.Manifest;
 import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
@@ -49,12 +52,6 @@ public class MainActivity extends AppCompatActivity {
         stoptracking = findViewById(R.id.stop_tracking);
 
         distanceview = findViewById(R.id.distanceview);
-        SharedPreferences sharedPreferences = getApplicationContext()
-                .getSharedPreferences("MyLocation", Context.MODE_PRIVATE);
-        String latitude = sharedPreferences.getString("Latitude", "");
-        String longitude = sharedPreferences.getString("Longitude", "");
-        String mile = sharedPreferences.getString("Mile", "");
-        distanceview.setText("Miles: " + mile );
 
         switchbtn.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
@@ -84,5 +81,26 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+
+    @Override
+    protected void onPause() {
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(broadcastReceiver);
+        super.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        LocalBroadcastManager.getInstance(this).registerReceiver(broadcastReceiver, new IntentFilter("SEND_TO_UI"));
+
+        super.onResume();
+    }
+
+    public BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            double milesrecive = intent.getDoubleExtra("miles", 0.00);
+            distanceview.setText("Miles: " + String.valueOf(milesrecive));
+        }
+    };
 
 }

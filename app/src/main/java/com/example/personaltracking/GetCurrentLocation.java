@@ -21,6 +21,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
@@ -112,19 +113,20 @@ public class GetCurrentLocation extends Service {
                                         }
 
                                         double distanceinmile = distance(oldlatitude,oldlongitude,newlatitude,newlongitude);
-
-                                        SharedPreferences.Editor editor = sharedPreferences.edit();
-                                        editor.putString("Mile", String.valueOf(distanceinmile));
-                                        editor.putString("Latitude", String.valueOf(newlatitude));
-                                        editor.putString("Longitude", String.valueOf(newlongitude));
-                                        editor.commit();
-
+                                        sendMessagetoUI(distanceinmile);
                                     }
                                 }
                             }, getMainLooper());
                 }
             }
         }, 3, 3, TimeUnit.SECONDS);
+
+    }
+
+    private void sendMessagetoUI(double distanceinmile) {
+        Intent intent = new Intent("SEND_TO_UI");
+        intent.putExtra("miles", distanceinmile);
+        LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(intent);
 
     }
 
